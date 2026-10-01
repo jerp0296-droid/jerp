@@ -1,0 +1,36 @@
+name: Actualizar EPG
+
+on:
+  schedule:
+    - cron: "0 5 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Instalar requests
+        run: pip install requests
+
+      - name: Generar EPG
+        run: python generar_epg.py
+
+      - name: Guardar guia.xml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add guia.xml
+          git diff --cached --quiet || git commit -m "Actualizar EPG"
+          git push
