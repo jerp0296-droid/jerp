@@ -21,7 +21,7 @@ CANALES = {
     },
 }
 
-OUTPUT = "XLGFHD.xml"
+OUTPUT = "guia.xml"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
