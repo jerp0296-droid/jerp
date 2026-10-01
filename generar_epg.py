@@ -1,18 +1,6 @@
-#!/usr/bin/env python3
-"""
-Descarga la programación de 40 Media Group y genera un XMLTV
-compatible con Smart IPTV / TiviMate.
-
-ENT Family:
-https://api.40mediagroup.com/xmltv/programacion/entfamily/guia.json
-
-ENT Channel:
-https://api.40mediagroup.com/xmltv/programacion/entchannel/guia.json
-"""
-
 import sys
 import requests
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from xml.etree.ElementTree import Element, SubElement, ElementTree, tostring
 from xml.dom import minidom
 
@@ -33,15 +21,12 @@ CANALES = {
     },
 }
 
-OUTPUT = "8F7k29LmXq.xml"
+OUTPUT = "guia.xml"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
     "Accept": "application/json",
 }
-
-# Colombia = UTC-5
-COLOMBIA_OFFSET = -5
 
 
 # ============================================================
@@ -49,8 +34,6 @@ COLOMBIA_OFFSET = -5
 # ============================================================
 
 def descargar_json(url):
-    print(f"    URL: {url}")
-
     respuesta = requests.get(
         url,
         headers=HEADERS,
@@ -63,10 +46,36 @@ def descargar_json(url):
 
 
 # ============================================================
-# CONVERTIR HORA A XMLTV
+# CONVERTIR HORA A COLOMBIA
 # ============================================================
 
+def fmt_xmltv(fecha):
+    """
+    Convierte una fecha ISO de la API de 40 Media
+    a formato XMLTV usando hora de Colombia.
 
+    Ejemplo:
+
+    2026-09-30T18:01:48+00:00
+
+    se convierte en:
+
+    20260930130148 -0500
+    """
+
+    dt = datetime.fromisoformat(fecha)
+
+    # Si la fecha no trae zona horaria,
+    # asumimos que está en UTC.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    # Colombia UTC-5
+    colombia = timezone(timedelta(hours=-5))
+
+    dt = dt.astimezone(colombia)
+
+    return dt.strftime("%Y%m%d%H%M%S -0500")
 
 
 # ============================================================
@@ -81,7 +90,7 @@ def texto(valor):
 
 
 # ============================================================
-# CREAR XMLTV
+# CONSTRUIR XMLTV
 # ============================================================
 
 def construir_xml(datos_por_canal):
@@ -117,14 +126,14 @@ def construir_xml(datos_por_canal):
         ).text = info["nombre"]
 
     # --------------------------------------------------------
-    # PROGRAMAS
+    # PROGRAMACIÓN
     # --------------------------------------------------------
 
     for cid, data in datos_por_canal.items():
 
         programas = data.get("programmes", [])
 
-        # Ordenar por hora de inicio
+        # Ordenar por fecha de inicio
         programas = sorted(
             programas,
             key=lambda x: x.get("start", "")
@@ -138,6 +147,7 @@ def construir_xml(datos_por_canal):
             stop = texto(p.get("stop"))
             title = texto(p.get("title"))
 
+            # Ignorar programas incompletos
             if not start or not stop or not title:
                 continue
 
@@ -155,7 +165,7 @@ def construir_xml(datos_por_canal):
             vistos.add(clave)
 
             # ------------------------------------------------
-            # PROGRAMME
+            # PROGRAMA
             # ------------------------------------------------
 
             prog = SubElement(
@@ -178,9 +188,12 @@ def construir_xml(datos_por_canal):
             ).text = title
 
             # SUBTÍTULO
-            subtitle = texto(p.get("subtitle"))
+            subtitle = texto(
+                p.get("subtitle")
+            )
 
             if subtitle:
+
                 SubElement(
                     prog,
                     "sub-title",
@@ -190,9 +203,12 @@ def construir_xml(datos_por_canal):
                 ).text = subtitle
 
             # DESCRIPCIÓN
-            descripcion = texto(p.get("desc"))
+            descripcion = texto(
+                p.get("desc")
+            )
 
             if descripcion:
+
                 SubElement(
                     prog,
                     "desc",
@@ -202,9 +218,12 @@ def construir_xml(datos_por_canal):
                 ).text = descripcion
 
             # CATEGORÍA
-            categoria = texto(p.get("category"))
+            categoria = texto(
+                p.get("category")
+            )
 
             if categoria:
+
                 SubElement(
                     prog,
                     "category",
@@ -214,9 +233,12 @@ def construir_xml(datos_por_canal):
                 ).text = categoria
 
             # ICONO
-            icono = texto(p.get("icon"))
+            icono = texto(
+                p.get("icon")
+            )
 
             if icono:
+
                 SubElement(
                     prog,
                     "icon",
@@ -229,7 +251,7 @@ def construir_xml(datos_por_canal):
 
 
 # ============================================================
-# GUARDAR XML BONITO
+# GUARDAR XML
 # ============================================================
 
 def guardar_xml(tree, archivo):
@@ -250,25 +272,25 @@ def guardar_xml(tree, archivo):
         archivo,
         "wb"
     ) as f:
+
         f.write(bonito)
 
 
 # ============================================================
-# MAIN
+# PROGRAMA PRINCIPAL
 # ============================================================
 
 def main():
 
     datos = {}
 
-    print()
     print("==========================================")
     print("       GENERADOR XMLTV 40 MEDIA")
     print("==========================================")
-    print()
 
     for cid, info in CANALES.items():
 
+        print()
         print(
             f"[+] Descargando {info['nombre']}..."
         )
@@ -302,7 +324,7 @@ def main():
             }
 
     print()
-    print("[+] Generando XMLTV...")
+    print("[+] Generando guia.xml...")
 
     tree = construir_xml(
         datos
@@ -315,9 +337,8 @@ def main():
 
     print()
     print("==========================================")
-    print(f"[OK] Archivo generado: {OUTPUT}")
+    print("[OK] guia.xml generado correctamente")
     print("==========================================")
-    print()
 
 
 if __name__ == "__main__":
